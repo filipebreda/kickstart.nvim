@@ -100,8 +100,6 @@ vim.g.have_nerd_font = false
 
 -- Make line numbers default
 vim.opt.number = true
--- You can also add relative line numbers, to help with jumping.
---  Experiment for yourself to see if you like it!
 -- vim.opt.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
@@ -173,7 +171,7 @@ vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagn
 --
 -- NOTE: This won't work in all terminal emulators/tmux/etc. Try your own mapping
 -- or just use <C-\><C-n> to exit terminal mode
-vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
+vim.keymap.set('t', '<Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 
 -- TIP: Disable arrow keys in normal mode
 -- vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
@@ -203,6 +201,43 @@ vim.api.nvim_create_autocmd('TextYankPost', {
     vim.highlight.on_yank()
   end,
 })
+
+-- Set terminal
+vim.api.nvim_create_autocmd('TermOpen', {
+  group = vim.api.nvim_create_augroup('custom-term-open', { clear = true }),
+  callback = function()
+    vim.opt.number = false
+    vim.opt.relativenumber = false
+    vim.cmd.startinsert()
+  end,
+})
+
+vim.keymap.set('n', '<leader>xd', function()
+  local cwd = vim.fn.expand('%:p:h')
+  local buftype = vim.bo.buftype
+  if buftype == '' or buftype == 'oil' then
+    vim.cmd.new()
+    vim.cmd.chdir(cwd)
+  else
+    vim.cmd.new()
+  end
+  vim.cmd.term()
+  vim.api.nvim_win_set_height(0, 10)
+end, { desc = 'Open terminal in current directory' })
+
+vim.keymap.set('n', '<leader>xx', vim.cmd.term, { desc = 'Open terminal' })
+
+vim.keymap.set('n', '<leader>xs', function()
+
+  vim.cmd.new()
+  vim.cmd.term()
+  vim.api.nvim_win_set_height(0, 10)
+end, { desc = 'Open terminal in horizontal split' })
+
+vim.keymap.set('n', '<leader>xv', function()
+  vim.cmd.vnew()
+   vim.cmd.term()
+end, { desc = 'Open terminal in vertical split' })
 
 -- [[ Install `lazy.nvim` plugin manager ]]
 --    See `:help lazy.nvim.txt` or https://github.com/folke/lazy.nvim for more info
@@ -258,6 +293,15 @@ require('lazy').setup({
         topdelete = { text = '‾' },
         changedelete = { text = '~' },
       },
+      current_line_blame = true, -- Toggle with `:Gitsigns toggle_current_line_blame`
+      current_line_blame_opts = {
+        virt_text = true,
+        virt_text_pos = 'eol', -- 'eol' | 'overlay' | 'right_align'
+        delay = 500,
+        ignore_whitespace = false,
+        virt_text_priority = 100,
+        use_focus = true,
+      },
     },
   },
 
@@ -291,6 +335,7 @@ require('lazy').setup({
         { '<leader>w', group = '[W]orkspace' },
         { '<leader>t', group = '[T]oggle' },
         { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
+        { '<leader>x', group = 'Terminal' },
       }
     end,
   },
@@ -365,6 +410,8 @@ require('lazy').setup({
         },
       }
 
+      require 'custom.plugins.multigrep'.setup()
+
       -- Enable Telescope extensions if they are installed
       pcall(require('telescope').load_extension, 'fzf')
       pcall(require('telescope').load_extension, 'ui-select')
@@ -376,11 +423,12 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })
       vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
       vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = '[S]earch current [W]ord' })
-      vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
+      -- vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
       vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
       vim.keymap.set('n', '<leader><leader>', builtin.buffers, { desc = '[ ] Find existing buffers' })
+      vim.keymap.set('n', '<leader>sc', builtin.git_status, { desc = '[S]earch [C]hanged Files using Git' })
 
       -- Slightly advanced example of overriding default behavior and theme
       vim.keymap.set('n', '<leader>/', function()
@@ -404,6 +452,18 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>sn', function()
         builtin.find_files { cwd = vim.fn.stdpath 'config' }
       end, { desc = '[S]earch [N]eovim files' })
+    end,
+  },
+
+  {
+    'unblevable/quick-scope',
+    config = function()
+      -- QuickScope Configuration
+      vim.g.qs_highlight_on_keys = { 'f', 'F', 't', 'T' } -- Highlight only on these keys
+      vim.cmd([[
+        highlight QuickScopePrimary guifg=#afff5f gui=bold ctermfg=155 cterm=bold
+        highlight QuickScopeSecondary guifg=#5fffff gui=bold ctermfg=81 cterm=bold
+      ]])
     end,
   },
 
@@ -563,10 +623,35 @@ require('lazy').setup({
       --  - capabilities (table): Override fields in capabilities. Can be used to disable certain LSP features.
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
+
+
+      -- Set Python path dynamically using pyenv or virtualenv
+      local pyenv_python = vim.fn.system('pyenv which python'):gsub('\n', '')
+      if vim.v.shell_error == 0 and pyenv_python ~= '' then
+        vim.g.python3_host_prog = pyenv_python
+      else
+        -- Fallback to a default Python path
+        vim.g.python3_host_prog = '/usr/bin/python3'
+      end
       local servers = {
         -- clangd = {},
         -- gopls = {},
-        -- pyright = {},
+        pyright = {
+          settings = {
+            python = {
+              pythonPath = vim.g.python3_host_prog,
+              analysis = {
+                autoImportCompletions = true, -- Enable auto-import for completions
+                useLibraryCodeForTypes = true, -- Use standard library for types
+              },
+            }
+          }
+        },
+        terraformls = {
+          cmd = { 'terraform-ls', 'serve' },
+          filetypes = { 'terraform', 'tf', 'hcl' },
+          root_dir = require('lspconfig.util').root_pattern('.terraform', '.git', '.'),
+        },
         -- rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
@@ -624,42 +709,42 @@ require('lazy').setup({
     end,
   },
 
-  { -- Autoformat
-    'stevearc/conform.nvim',
-    lazy = false,
-    keys = {
-      {
-        '<leader>f',
-        function()
-          require('conform').format { async = true, lsp_fallback = true }
-        end,
-        mode = '',
-        desc = '[F]ormat buffer',
-      },
-    },
-    opts = {
-      notify_on_error = false,
-      format_on_save = function(bufnr)
-        -- Disable "format_on_save lsp_fallback" for languages that don't
-        -- have a well standardized coding style. You can add additional
-        -- languages here or re-enable it for the disabled ones.
-        local disable_filetypes = { c = true, cpp = true }
-        return {
-          timeout_ms = 500,
-          lsp_fallback = not disable_filetypes[vim.bo[bufnr].filetype],
-        }
-      end,
-      formatters_by_ft = {
-        lua = { 'stylua' },
-        -- Conform can also run multiple formatters sequentially
-        -- python = { "isort", "black" },
-        --
-        -- You can use a sub-list to tell conform to run *until* a formatter
-        -- is found.
-        -- javascript = { { "prettierd", "prettier" } },
-      },
-    },
-  },
+  -- { -- Autoformat
+  --   'stevearc/conform.nvim',
+  --   lazy = false,
+  --   keys = {
+  --     {
+  --       '<leader>f',
+  --       function()
+  --         require('conform').format { async = true, lsp_fallback = true }
+  --       end,
+  --       mode = '',
+  --       desc = '[F]ormat buffer',
+  --     },
+  --   },
+  --   opts = {
+  --     notify_on_error = false,
+  --     format_on_save = function(bufnr)
+  --       -- Disable "format_on_save lsp_fallback" for languages that don't
+  --       -- have a well standardized coding style. You can add additional
+  --       -- languages here or re-enable it for the disabled ones.
+  --       local disable_filetypes = { c = true, cpp = true }
+  --       return {
+  --         timeout_ms = 500,
+  --         lsp_fallback = not disable_filetypes[vim.bo[bufnr].filetype],
+  --       }
+  --     end,
+  --     formatters_by_ft = {
+  --       lua = { 'stylua' },
+  --       -- Conform can also run multiple formatters sequentially
+  --       -- python = { "isort", "black" },
+  --       --
+  --       -- You can use a sub-list to tell conform to run *until* a formatter
+  --       -- is found.
+  --       -- javascript = { { "prettierd", "prettier" } },
+  --     },
+  --   },
+  -- },
 
   { -- Autocompletion
     'hrsh7th/nvim-cmp',
@@ -732,7 +817,7 @@ require('lazy').setup({
 
           -- If you prefer more traditional completion keymaps,
           -- you can uncomment the following lines
-          --['<CR>'] = cmp.mapping.confirm { select = true },
+          ['<CR>'] = cmp.mapping.confirm { select = true },
           --['<Tab>'] = cmp.mapping.select_next_item(),
           --['<S-Tab>'] = cmp.mapping.select_prev_item(),
 
@@ -790,6 +875,7 @@ require('lazy').setup({
     end,
   },
 
+
   -- Highlight todo, notes, etc in comments
   { 'folke/todo-comments.nvim', event = 'VimEnter', dependencies = { 'nvim-lua/plenary.nvim' }, opts = { signs = false } },
 
@@ -804,7 +890,7 @@ require('lazy').setup({
       --  - ci'  - [C]hange [I]nside [']quote
       require('mini.ai').setup { n_lines = 500 }
 
-      -- Add/delete/replace surroundings (brackets, quotes, etc.)
+      -- Add/delete/replace surroundings (bracets, quotes, etc.)
       --
       -- - saiw) - [S]urround [A]dd [I]nner [W]ord [)]Paren
       -- - sd'   - [S]urround [D]elete [']quotes
@@ -812,7 +898,7 @@ require('lazy').setup({
       require('mini.surround').setup()
 
       -- Simple and easy statusline.
-      --  You could remove this setup call if you don't like it,
+      --  You could remove this setup call if you don't lie it,
       --  and try some other statusline plugin
       local statusline = require 'mini.statusline'
       -- set use_icons to true if you have a Nerd Font
@@ -873,11 +959,16 @@ require('lazy').setup({
   --  Uncomment any of the lines below to enable them (you will need to restart nvim).
   --
   -- require 'kickstart.plugins.debug',
-  -- require 'kickstart.plugins.indent_line',
+  require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
-  -- require 'kickstart.plugins.autopairs',
+  require 'kickstart.plugins.autopairs',
   -- require 'kickstart.plugins.neo-tree',
-  -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
+  require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
+
+  require 'custom.plugins.neoscroll',
+
+  require 'custom.plugins.oil',
+  vim.keymap.set('n', '-', '<CMD>Oil<CR>', { desc = 'Open parent directory' }),
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
@@ -903,9 +994,49 @@ require('lazy').setup({
       start = '🚀',
       task = '📌',
       lazy = '💤 ',
+      },
     },
-  },
-})
+  })
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
+
+
+-- My custom functions
+
+-- Set custom project config
+local project_config = vim.fn.getcwd() .. '/.nvim.lua'
+if vim.fn.filereadable(project_config) == 1 then
+    dofile(project_config)
+end
+
+-- Auto refresh buffers on external changes
+vim.opt.autoread = true
+vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter' }, {
+  group = vim.api.nvim_create_augroup('AutoReadGroup', { clear = true }),
+  callback = function()
+    vim.cmd('checktime')
+  end,
+})
+
+-- Go to floating window
+local function jump_to_floating_window()
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_get_config(win).relative ~= '' then -- Floating windows have a non-empty 'relative' config
+      vim.api.nvim_set_current_win(win)
+      break
+    end
+  end
+end
+
+vim.keymap.set('n', '<C-w>f', jump_to_floating_window, { desc = 'Go to floating window' })
+
+-- Auto save
+vim.api.nvim_create_autocmd({ 'InsertLeave', 'TextChanged' }, {
+  callback = function()
+    if vim.bo.buftype == '' and vim.api.nvim_buf_get_name(0) ~= '' and vim.bo.buflisted then
+      vim.cmd('silent wall')
+    end
+  end
+})
+
