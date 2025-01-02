@@ -91,7 +91,8 @@ vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
+vim.o.guifont = 'FiraMono Nerd Font:h12'
 
 -- [[ Setting options ]]
 -- See `:help vim.opt`
@@ -102,7 +103,7 @@ vim.g.have_nerd_font = false
 vim.opt.number = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
--- vim.opt.relativenumber = true
+vim.opt.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.opt.mouse = 'a'
@@ -165,6 +166,9 @@ vim.opt.scrolloff = 10
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 -- Diagnostic keymaps
+vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, { desc = 'Go to previous [D]iagnostic message' })
+vim.keymap.set('n', ']d', vim.diagnostic.goto_next, { desc = 'Go to next [D]iagnostic message' })
+vim.keymap.set('n', '<leader>e', vim.diagnostic.open_float, { desc = 'Show diagnostic [E]rror messages' })
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
@@ -173,7 +177,7 @@ vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagn
 --
 -- NOTE: This won't work in all terminal emulators/tmux/etc. Try your own mapping
 -- or just use <C-\><C-n> to exit terminal mode
-vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
+vim.keymap.set('t', '<Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 
 -- TIP: Disable arrow keys in normal mode
 -- vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
@@ -190,6 +194,11 @@ vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right win
 vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
+-- Navigate through buffers faster
+vim.keymap.set('n', '<C-n>', ':bn<CR>')
+vim.keymap.set('n', '<C-p>', ':bp<CR>')
+vim.keymap.set('n', '<C-x>', ':bd<CR>')
+
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
 
@@ -203,6 +212,38 @@ vim.api.nvim_create_autocmd('TextYankPost', {
     vim.highlight.on_yank()
   end,
 })
+
+-- Set terminal
+vim.api.nvim_create_autocmd('TermOpen', {
+  group = vim.api.nvim_create_augroup('custom-term-open', { clear = true }),
+  callback = function()
+    vim.cmd.startinsert()
+  end,
+})
+
+vim.keymap.set('n', '<leader>xd', function()
+  local cwd = vim.fn.expand '%:p:h'
+  local buftype = vim.bo.buftype
+  if buftype == '' then
+    vim.cmd.new()
+    vim.cmd.term()
+    vim.fn.chansend(vim.b.terminal_job_id, 'cd ' .. cwd .. '\n')
+    vim.api.nvim_win_set_height(0, 15)
+  end
+end, { desc = 'Open terminal in current directory' })
+
+vim.keymap.set('n', '<leader>xx', vim.cmd.term, { desc = 'Open terminal' })
+
+vim.keymap.set('n', '<leader>xs', function()
+  vim.cmd.new()
+  vim.cmd.term()
+  vim.api.nvim_win_set_height(0, 10)
+end, { desc = 'Open terminal in horizontal split' })
+
+vim.keymap.set('n', '<leader>xv', function()
+  vim.cmd.vnew()
+  vim.cmd.term()
+end, { desc = 'Open terminal in vertical split' })
 
 -- [[ Install `lazy.nvim` plugin manager ]]
 --    See `:help lazy.nvim.txt` or https://github.com/folke/lazy.nvim for more info
@@ -252,6 +293,15 @@ require('lazy').setup({
         delete = { text = '_' },
         topdelete = { text = '‾' },
         changedelete = { text = '~' },
+      },
+      current_line_blame = true, -- Toggle with `:Gitsigns toggle_current_line_blame`
+      current_line_blame_opts = {
+        virt_text = true,
+        virt_text_pos = 'eol', -- 'eol' | 'overlay' | 'right_align'
+        delay = 500,
+        ignore_whitespace = false,
+        virt_text_priority = 100,
+        use_focus = true,
       },
     },
   },
@@ -320,6 +370,7 @@ require('lazy').setup({
         { '<leader>w', group = '[W]orkspace' },
         { '<leader>t', group = '[T]oggle' },
         { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
+        { '<leader>x', group = 'Terminal' },
       },
     },
   },
@@ -377,15 +428,33 @@ require('lazy').setup({
 
       -- [[ Configure Telescope ]]
       -- See `:help telescope` and `:help telescope.setup()`
+      local actions = require 'telescope.actions'
       require('telescope').setup {
         -- You can put your default mappings / updates / etc. in here
         --  All the info you're looking for is in `:help telescope.setup()`
         --
-        -- defaults = {
-        --   mappings = {
-        --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
-        --   },
-        -- },
+        defaults = {
+          mappings = {
+            i = {
+              ['<C-s>'] = actions.select_horizontal,
+            },
+            n = {
+              ['<C-s>'] = actions.select_horizontal,
+            },
+          },
+        },
+        pickers = {
+          buffers = {
+            mappings = {
+              i = {
+                ['<C-x>'] = actions.delete_buffer,
+              },
+              n = {
+                ['<C-x>'] = actions.delete_buffer,
+              },
+            },
+          },
+        },
         -- pickers = {}
         extensions = {
           ['ui-select'] = {
@@ -405,11 +474,12 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })
       vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
       vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = '[S]earch current [W]ord' })
-      vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
+      -- vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
       vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
       vim.keymap.set('n', '<leader><leader>', builtin.buffers, { desc = '[ ] Find existing buffers' })
+      vim.keymap.set('n', '<leader>sc', builtin.git_status, { desc = '[S]earch [C]hanged Files using Git' })
 
       -- Slightly advanced example of overriding default behavior and theme
       vim.keymap.set('n', '<leader>/', function()
@@ -433,6 +503,39 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>sn', function()
         builtin.find_files { cwd = vim.fn.stdpath 'config' }
       end, { desc = '[S]earch [N]eovim files' })
+
+      require('custom.plugins.multigrep').setup()
+    end,
+  },
+
+  {
+    'jinh0/eyeliner.nvim',
+    config = function()
+      require('eyeliner').setup {
+        -- show highlights only after keypress
+        highlight_on_key = false,
+
+        -- dim all other characters if set to true (recommended!)
+        dim = false,
+
+        -- set the maximum number of characters eyeliner.nvim will check from
+        -- your current cursor position; this is useful if you are dealing with
+        -- large files: see https://github.com/jinh0/eyeliner.nvim/issues/41
+        max_length = 9999,
+
+        -- filetypes for which eyeliner should be disabled;
+        -- e.g., to disable on help files:
+        -- disabled_filetypes = {"help"}
+        disabled_filetypes = {},
+
+        -- buftypes for which eyeliner should be disabled
+        -- e.g., disabled_buftypes = {"nofile"}
+        disabled_buftypes = {},
+
+        -- add eyeliner to f/F/t/T keymaps;
+        -- see section on advanced configuration for more information
+        default_keymaps = true,
+      }
     end,
   },
 
@@ -613,10 +716,34 @@ require('lazy').setup({
       --  - capabilities (table): Override fields in capabilities. Can be used to disable certain LSP features.
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
+
+      -- Set Python path dynamically using pyenv or virtualenv
+      local pyenv_python = vim.fn.system('pyenv which python'):gsub('\n', '')
+      if vim.v.shell_error == 0 and pyenv_python ~= '' then
+        vim.g.python3_host_prog = pyenv_python
+      else
+        -- Fallback to a default Python path
+        vim.g.python3_host_prog = '/usr/bin/python3'
+      end
       local servers = {
         -- clangd = {},
-        -- gopls = {},
-        -- pyright = {},
+        gopls = {},
+        pyright = {
+          settings = {
+            python = {
+              pythonPath = vim.g.python3_host_prog,
+              analysis = {
+                autoImportCompletions = true, -- Enable auto-import for completions
+                useLibraryCodeForTypes = true, -- Use standard library for types
+              },
+            },
+          },
+        },
+        terraformls = {
+          cmd = { 'terraform-ls', 'serve' },
+          filetypes = { 'terraform', 'tf', 'tfvars', 'hcl' },
+          root_dir = require('lspconfig.util').root_pattern('.terraform', '.git', '.'),
+        },
         -- rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
@@ -624,7 +751,7 @@ require('lazy').setup({
         --    https://github.com/pmizio/typescript-tools.nvim
         --
         -- But for many setups, the LSP (`ts_ls`) will work just fine
-        -- ts_ls = {},
+        ts_ls = {},
         --
 
         lua_ls = {
@@ -676,7 +803,7 @@ require('lazy').setup({
 
   { -- Autoformat
     'stevearc/conform.nvim',
-    event = { 'BufWritePre' },
+    -- event = { 'BufWritePre' },
     cmd = { 'ConformInfo' },
     keys = {
       {
@@ -689,30 +816,35 @@ require('lazy').setup({
       },
     },
     opts = {
-      notify_on_error = false,
-      format_on_save = function(bufnr)
-        -- Disable "format_on_save lsp_fallback" for languages that don't
-        -- have a well standardized coding style. You can add additional
-        -- languages here or re-enable it for the disabled ones.
-        local disable_filetypes = { c = true, cpp = true }
-        local lsp_format_opt
-        if disable_filetypes[vim.bo[bufnr].filetype] then
-          lsp_format_opt = 'never'
-        else
-          lsp_format_opt = 'fallback'
-        end
-        return {
-          timeout_ms = 500,
-          lsp_format = lsp_format_opt,
-        }
-      end,
+      -- notify_on_error = false,
+      -- format_on_save = function(bufnr)
+      --   -- Disable "format_on_save lsp_fallback" for languages that don't
+      --   -- have a well standardized coding style. You can add additional
+      --   -- languages here or re-enable it for the disabled ones.
+      --   local disable_filetypes = { c = true, cpp = true }
+      --   local lsp_format_opt
+      --   if disable_filetypes[vim.bo[bufnr].filetype] then
+      --     lsp_format_opt = 'never'
+      --   else
+      --     lsp_format_opt = 'fallback'
+      --   end
+      --   return {
+      --     timeout_ms = 500,
+      --     lsp_format = lsp_format_opt,
+      --   }
+      -- end,
       formatters_by_ft = {
         lua = { 'stylua' },
         -- Conform can also run multiple formatters sequentially
-        -- python = { "isort", "black" },
+        python = { 'black' },
         --
         -- You can use 'stop_after_first' to run the first available formatter from the list
         -- javascript = { "prettierd", "prettier", stop_after_first = true },
+      },
+      formatters = {
+        black = {
+          prepend_args = { '--line-length', '120' },
+        },
       },
     },
   },
@@ -737,12 +869,12 @@ require('lazy').setup({
           -- `friendly-snippets` contains a variety of premade snippets.
           --    See the README about individual language/framework/plugin snippets:
           --    https://github.com/rafamadriz/friendly-snippets
-          -- {
-          --   'rafamadriz/friendly-snippets',
-          --   config = function()
-          --     require('luasnip.loaders.from_vscode').lazy_load()
-          --   end,
-          -- },
+          {
+            'rafamadriz/friendly-snippets',
+            config = function()
+              require('luasnip.loaders.from_vscode').lazy_load()
+            end,
+          },
         },
       },
       'saadparwaiz1/cmp_luasnip',
@@ -788,7 +920,7 @@ require('lazy').setup({
 
           -- If you prefer more traditional completion keymaps,
           -- you can uncomment the following lines
-          --['<CR>'] = cmp.mapping.confirm { select = true },
+          ['<CR>'] = cmp.mapping.confirm { select = true },
           --['<Tab>'] = cmp.mapping.select_next_item(),
           --['<S-Tab>'] = cmp.mapping.select_prev_item(),
 
@@ -844,7 +976,7 @@ require('lazy').setup({
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
       -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'tokyonight-night'
+      vim.cmd.colorscheme 'tokyonight'
 
       -- You can configure highlights by doing something like:
       vim.cmd.hi 'Comment gui=none'
@@ -865,7 +997,7 @@ require('lazy').setup({
       --  - ci'  - [C]hange [I]nside [']quote
       require('mini.ai').setup { n_lines = 500 }
 
-      -- Add/delete/replace surroundings (brackets, quotes, etc.)
+      -- Add/delete/replace surroundings (bracets, quotes, etc.)
       --
       -- - saiw) - [S]urround [A]dd [I]nner [W]ord [)]Paren
       -- - sd'   - [S]urround [D]elete [']quotes
@@ -873,7 +1005,7 @@ require('lazy').setup({
       require('mini.surround').setup()
 
       -- Simple and easy statusline.
-      --  You could remove this setup call if you don't like it,
+      --  You could remove this setup call if you don't lie it,
       --  and try some other statusline plugin
       local statusline = require 'mini.statusline'
       -- set use_icons to true if you have a Nerd Font
@@ -916,6 +1048,45 @@ require('lazy').setup({
     --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
     --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
   },
+  {
+    'nvim-treesitter/nvim-treesitter-context',
+    dependencies = { 'nvim-treesitter/nvim-treesitter' },
+    config = function()
+      require('treesitter-context').setup {
+        enable = true, -- Enable this plugin (can be set to false for debugging)
+        throttle = true, -- Throttles plugin updates (improves performance)
+        max_lines = 0, -- No limit on the number of lines the context window spans
+        -- patterns = { -- Match patterns for TS nodes
+        --     default = {
+        --         "class",
+        --         "function",
+        --         "method",
+        --         "for",
+        --         "while",
+        --         "if",
+        --         "switch",
+        --         "case",
+        --     },
+        -- },
+      }
+    end,
+  },
+
+  -- require'treesitter-context'.setup{
+  --   enable = true, -- Enable this plugin (Can be enabled/disabled later via commands)
+  --   multiwindow = false, -- Enable multiwindow support.
+  --   max_lines = 0, -- How many lines the window should span. Values <= 0 mean no limit.
+  --   min_window_height = 0, -- Minimum editor window height to enable context. Values <= 0 mean no limit.
+  --   line_numbers = true,
+  --   multiline_threshold = 20, -- Maximum number of lines to show for a single context
+  --   trim_scope = 'outer', -- Which context lines to discard if `max_lines` is exceeded. Choices: 'inner', 'outer'
+  --   mode = 'cursor',  -- Line used to calculate context. Choices: 'cursor', 'topline'
+  --   -- Separator between context and content. Should be a single character string, like '-'.
+  --   -- When separator is set, the context will only show up when there are at least 2 lines above cursorline.
+  --   separator = nil,
+  --   zindex = 20, -- The Z-index of the context window
+  --   on_attach = nil, -- (fun(buf: integer): boolean) return false to disable attaching
+  -- }
 
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
   -- init.lua. If you want these files, they are in the repository, so you can just download them and
@@ -927,11 +1098,16 @@ require('lazy').setup({
   --  Uncomment any of the lines below to enable them (you will need to restart nvim).
   --
   -- require 'kickstart.plugins.debug',
-  -- require 'kickstart.plugins.indent_line',
+  require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
-  -- require 'kickstart.plugins.autopairs',
+  require 'kickstart.plugins.autopairs',
   -- require 'kickstart.plugins.neo-tree',
-  -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
+  require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
+
+  --require 'custom.plugins.neoscroll',
+
+  require 'custom.plugins.oil',
+  vim.keymap.set('n', '-', '<CMD>Oil<CR>', { desc = 'Open parent directory' }),
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
@@ -967,3 +1143,47 @@ require('lazy').setup({
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
+
+-- My custom functions
+
+-- Set custom project config
+local project_config = vim.fn.getcwd() .. '/.nvim.lua'
+if vim.fn.filereadable(project_config) == 1 then
+  dofile(project_config)
+end
+
+-- Auto refresh buffers on external changes
+vim.opt.autoread = true
+vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter' }, {
+  group = vim.api.nvim_create_augroup('AutoReadGroup', { clear = true }),
+  callback = function()
+    vim.cmd 'checktime'
+  end,
+})
+
+-- Go to floating window
+local function jump_to_floating_window()
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_get_config(win).relative ~= '' then -- Floating windows have a non-empty 'relative' config
+      vim.api.nvim_set_current_win(win)
+      break
+    end
+  end
+end
+vim.keymap.set('n', '<C-w>f', jump_to_floating_window, { desc = 'Go to floating window' })
+
+-- Auto save
+vim.api.nvim_create_autocmd({ 'InsertLeave', 'TextChanged' }, {
+  callback = function()
+    if vim.bo.buftype == '' and vim.api.nvim_buf_get_name(0) ~= '' and vim.bo.buflisted then
+      vim.cmd 'silent wall'
+    end
+  end,
+})
+
+-- Copy current file's path
+vim.api.nvim_create_user_command('Cppath', function()
+  local path = vim.fn.expand '%:p'
+  vim.fn.setreg('+', path)
+  vim.notify('Copied "' .. path .. '" to the clipboard!')
+end, {})
